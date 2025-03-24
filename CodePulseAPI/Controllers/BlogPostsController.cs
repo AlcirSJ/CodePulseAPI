@@ -3,6 +3,8 @@ using CodePulseAPI.Models.DTO;
 using CodePulseAPI.Repositories.Interface;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.IdentityModel.Tokens;
+using System.ComponentModel;
 
 namespace CodePulseAPI.Controllers;
 
@@ -100,5 +102,102 @@ public class BlogPostsController : ControllerBase
         }
 
         return Ok(response);
+    }
+
+    // GET: {apibaseurl}/api/blogposts
+    [HttpGet]
+    [Route("{id:Guid}")]
+    public async Task<IActionResult> GetAllBlogPostById([FromRoute] Guid id)
+    {
+        var blogPost = await _blogPostRepository.GetByIdAsync(id);
+
+        if(blogPost is null)
+        {
+            return NotFound();
+        }
+
+        var response = new BlogPostDto()       
+        {            
+                Id = blogPost.Id,
+                Author = blogPost.Author,
+                Title = blogPost.Title,
+                Content = blogPost.Content,
+                IsVisible = blogPost.IsVisible,
+                ShortDescription = blogPost.ShortDescription,
+                FeaturedImageUrl = blogPost.FeaturedImageUrl,
+                PublishedDate = blogPost.PublishedDate,
+                UrlHandle = blogPost.UrlHandle,
+                Categories = blogPost.Categories.Select(x => new CategoryDto
+                {
+                    Id = x.Id,
+                    Name = x.Name,
+                    UrlHandle = x.UrlHandle
+                }).ToList()
+        };
+        
+
+        return Ok(response);
+    }
+
+    //PUT: {apibaseurl}/api/blogposts/{id}
+    [HttpPut]
+    [Route("{id:Guid}")]
+    public async Task<IActionResult> UpdateBlogPostById([FromRoute] Guid id, UpdateBlogPostRequestDto request)
+    {
+        // Convert DTO to Domain
+        var blogPost = new BlogPost
+        {
+            Id = id,
+            Author = request.Author,
+            Title = request.Title,
+            Content = request.Content,
+            IsVisible = request.IsVisible,
+            ShortDescription = request.ShortDescription,
+            FeaturedImageUrl = request.FeaturedImageUrl,
+            PublishedDate = request.PublishedDate,
+            UrlHandle = request.UrlHandle,
+            Categories = new List<Category>()
+        };
+
+        foreach(var categoryGuid in request.Categories)
+        {
+            var existingCategory = await _categoryRepository.GetById(categoryGuid);
+
+            if(existingCategory is not null)
+            {
+                blogPost.Categories.Add(existingCategory);
+            }
+        }
+
+        var updatedBloggPost = await _blogPostRepository.UpdateAsync(blogPost);
+
+        if(updatedBloggPost == null)
+        {
+            return NotFound();
+        }
+
+        var response = new BlogPostDto()
+        {
+            Id = blogPost.Id,
+            Author = blogPost.Author,
+            Title = blogPost.Title,
+            Content = blogPost.Content,
+            IsVisible = blogPost.IsVisible,
+            ShortDescription = blogPost.ShortDescription,
+            FeaturedImageUrl = blogPost.FeaturedImageUrl,
+            PublishedDate = blogPost.PublishedDate,
+            UrlHandle = blogPost.UrlHandle,
+            Categories = blogPost.Categories.Select(x => new CategoryDto
+            {
+                Id = x.Id,
+                Name = x.Name,
+                UrlHandle = x.UrlHandle
+            }).ToList()
+        };
+
+        return Ok(response);
+
+
+
     }
 }

@@ -21,12 +21,20 @@ public class CategoryRepository : ICategoryRepository
         return category;
     }       
 
-    public async Task<IEnumerable<Category>> GetAllAsync()
+    public async Task<(IEnumerable<Category> Items, int TotalItems)> GetAllAsync(int page, int pageSize)
     {
-        return await _dbContext.Categories.ToListAsync();
-    }    
+        var query = _dbContext.Categories.OrderBy(x => x.Name);
 
-    public async Task<Category?> GetById(Guid id)
+        var totalItems = await query.CountAsync();
+
+        var items = await query.Skip((page - 1) * pageSize)
+                               .Take(pageSize)
+                               .ToListAsync();
+
+        return (items, totalItems);
+    }
+
+    public async Task<Category?> GetByIdAsync(Guid id)
     {
         return await _dbContext.Categories.FirstOrDefaultAsync(x => x.Id.Equals(id));
     }

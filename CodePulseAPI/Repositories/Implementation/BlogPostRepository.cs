@@ -35,15 +35,23 @@ public class BlogPostRepository : IBlogPostRepository
 
     }
 
-    public async Task<IEnumerable<BlogPost>> GetAllAsync()
+    public async Task<(IEnumerable<BlogPost> Items, int TotalItems)> GetAllAsync(int page, int pageSize)
     {
-        return await _dbContext.BlogPosts.Include("Categories")
-                                         .ToListAsync();
+        var query = _dbContext.BlogPosts.Include(x => x.Categories)
+                                        .OrderByDescending(x => x.PublishedDate);
+
+        var totalItems = await query.CountAsync();
+
+        var items = await query.Skip((page - 1) * pageSize)
+                               .Take(pageSize)
+                               .ToListAsync();
+
+        return (items, totalItems);
     }
 
-    public async Task<BlogPost> GetByIdAsync(Guid id)
+    public async Task<BlogPost?> GetByIdAsync(Guid id)
     {
-        return await _dbContext.BlogPosts.Include("Categories")
+        return await _dbContext.BlogPosts.Include(x => x.Categories)
                                          .FirstOrDefaultAsync(x => x.Id.Equals(id));
     }
 

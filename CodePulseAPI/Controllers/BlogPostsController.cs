@@ -1,10 +1,6 @@
-﻿using CodePulseAPI.Models.Domain;
 using CodePulseAPI.Models.DTO;
-using CodePulseAPI.Repositories.Interface;
-using Microsoft.AspNetCore.Http;
+using CodePulseAPI.Services.Interface;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.IdentityModel.Tokens;
-using System.ComponentModel;
 
 namespace CodePulseAPI.Controllers;
 
@@ -12,219 +8,48 @@ namespace CodePulseAPI.Controllers;
 [ApiController]
 public class BlogPostsController : ControllerBase
 {
-    private readonly IBlogPostRepository _blogPostRepository;
-    private readonly ICategoryRepository _categoryRepository;
-    public BlogPostsController(IBlogPostRepository blogPostRepository, ICategoryRepository categoryRepository)
+    private readonly IBlogPostService _blogPostService;
+
+    public BlogPostsController(IBlogPostService blogPostService)
     {
-       _blogPostRepository = blogPostRepository;
-       _categoryRepository = categoryRepository;
+        _blogPostService = blogPostService;
     }
-    // POST: {apibaseurl}/api/blogposts
+
     [HttpPost]
     public async Task<IActionResult> CreateBlogPost([FromBody] CreateBlogPostRequestDto request)
     {
-        //Dto to domain model
-        var blogPost = new BlogPost
-        {
-            Author = request.Author,
-            Title = request.Title,
-            Content = request.Content,
-            IsVisible = request.IsVisible,
-            ShortDescription = request.ShortDescription,
-            FeaturedImageUrl = request.FeaturedImageUrl,
-            PublishedDate = request.PublishedDate,
-            UrlHandle = request.UrlHandle,
-            Categories = new List<Category>()
-        };
-
-        foreach(var categoryGuid in request.Categories)
-        {
-            var existingCategory = await _categoryRepository.GetById(categoryGuid);
-
-            if (existingCategory is not null)
-            {
-                blogPost.Categories.Add(existingCategory);
-            }
-        }
-
-        blogPost = await _blogPostRepository.CreateAsync(blogPost);
-
-        //Domain model to Dto
-        var response = new BlogPostDto
-        {
-            Id = blogPost.Id,
-            Author = blogPost.Author,
-            Title = blogPost.Title,
-            Content = blogPost.Content,
-            IsVisible = blogPost.IsVisible,
-            ShortDescription = blogPost.ShortDescription,
-            FeaturedImageUrl = blogPost.FeaturedImageUrl,
-            PublishedDate = blogPost.PublishedDate,
-            UrlHandle = blogPost.UrlHandle,
-            Categories = blogPost.Categories.Select(x => new CategoryDto
-            {
-                Id = x.Id,
-                Name = x.Name,
-                UrlHandle = x.UrlHandle
-            }).ToList()
-        };
-
+        var response = await _blogPostService.CreateAsync(request);
         return Ok(response);
     }
 
-    // GET: {apibaseurl}/api/blogposts
     [HttpGet]
-    public async Task<IActionResult> GetAllBlogPosts()
+    public async Task<IActionResult> GetAllBlogPosts([FromQuery] int page = 1, [FromQuery] int pageSize = 20)
     {
-       var blogPosts =  await _blogPostRepository.GetAllAsync();
+        page = page < 1 ? 1 : page;
+        pageSize = pageSize is < 1 or > 100 ? 20 : pageSize;
 
-        var response = new List<BlogPostDto>();
-        foreach(var blogPost in blogPosts)
-        {
-            response.Add(new BlogPostDto
-            {
-                Id = blogPost.Id,
-                Author = blogPost.Author,
-                Title = blogPost.Title,
-                Content = blogPost.Content,
-                IsVisible = blogPost.IsVisible,
-                ShortDescription = blogPost.ShortDescription,
-                FeaturedImageUrl = blogPost.FeaturedImageUrl,
-                PublishedDate = blogPost.PublishedDate,
-                UrlHandle = blogPost.UrlHandle,
-                Categories = blogPost.Categories.Select(x => new CategoryDto
-                {
-                    Id = x.Id,
-                    Name = x.Name,
-                    UrlHandle = x.UrlHandle
-                }).ToList()
-            });
-        }
-
+        var response = await _blogPostService.GetAllAsync(page, pageSize);
         return Ok(response);
     }
 
-    // GET: {apibaseurl}/api/blogposts
-    [HttpGet]
-    [Route("{id:Guid}")]
-    public async Task<IActionResult> GetAllBlogPostById([FromRoute] Guid id)
+    [HttpGet("{id:Guid}")]
+    public async Task<IActionResult> GetBlogPostById([FromRoute] Guid id)
     {
-        var blogPost = await _blogPostRepository.GetByIdAsync(id);
-
-        if(blogPost is null)
-        {
-            return NotFound();
-        }
-
-        var response = new BlogPostDto()       
-        {            
-                Id = blogPost.Id,
-                Author = blogPost.Author,
-                Title = blogPost.Title,
-                Content = blogPost.Content,
-                IsVisible = blogPost.IsVisible,
-                ShortDescription = blogPost.ShortDescription,
-                FeaturedImageUrl = blogPost.FeaturedImageUrl,
-                PublishedDate = blogPost.PublishedDate,
-                UrlHandle = blogPost.UrlHandle,
-                Categories = blogPost.Categories.Select(x => new CategoryDto
-                {
-                    Id = x.Id,
-                    Name = x.Name,
-                    UrlHandle = x.UrlHandle
-                }).ToList()
-        };
-        
-
-        return Ok(response);
+        var response = await _blogPostService.GetByIdAsync(id);
+        return response is null ? NotFound() : Ok(response);
     }
 
-    //PUT: {apibaseurl}/api/blogposts/{id}
-    [HttpPut]
-    [Route("{id:Guid}")]
-    public async Task<IActionResult> UpdateBlogPostById([FromRoute] Guid id, UpdateBlogPostRequestDto request)
+    [HttpPut("{id:Guid}")]
+    public async Task<IActionResult> UpdateBlogPost([FromRoute] Guid id, UpdateBlogPostRequestDto request)
     {
-        // Convert DTO to Domain
-        var blogPost = new BlogPost
-        {
-            Id = id,
-            Author = request.Author,
-            Title = request.Title,
-            Content = request.Content,
-            IsVisible = request.IsVisible,
-            ShortDescription = request.ShortDescription,
-            FeaturedImageUrl = request.FeaturedImageUrl,
-            PublishedDate = request.PublishedDate,
-            UrlHandle = request.UrlHandle,
-            Categories = new List<Category>()
-        };
-
-        foreach(var categoryGuid in request.Categories)
-        {
-            var existingCategory = await _categoryRepository.GetById(categoryGuid);
-
-            if(existingCategory is not null)
-            {
-                blogPost.Categories.Add(existingCategory);
-            }
-        }
-
-        var updatedBloggPost = await _blogPostRepository.UpdateAsync(blogPost);
-
-        if(updatedBloggPost == null)
-        {
-            return NotFound();
-        }
-
-        var response = new BlogPostDto()
-        {
-            Id = blogPost.Id,
-            Author = blogPost.Author,
-            Title = blogPost.Title,
-            Content = blogPost.Content,
-            IsVisible = blogPost.IsVisible,
-            ShortDescription = blogPost.ShortDescription,
-            FeaturedImageUrl = blogPost.FeaturedImageUrl,
-            PublishedDate = blogPost.PublishedDate,
-            UrlHandle = blogPost.UrlHandle,
-            Categories = blogPost.Categories.Select(x => new CategoryDto
-            {
-                Id = x.Id,
-                Name = x.Name,
-                UrlHandle = x.UrlHandle
-            }).ToList()
-        };
-
-        return Ok(response);
-
-
-
+        var response = await _blogPostService.UpdateAsync(id, request);
+        return response is null ? NotFound() : Ok(response);
     }
 
-    //DELETE: {apibaseurl}/api/blogposts/{id}
-    [HttpDelete]
-    [Route("{id:Guid}")]
+    [HttpDelete("{id:Guid}")]
     public async Task<IActionResult> DeleteBlogPost([FromRoute] Guid id)
     {
-        var deletedBlogPost = await _blogPostRepository.DeleteAsync(id);
-
-        if(deletedBlogPost is null)
-        {
-            return NotFound();
-        }
-        var response = new BlogPostDto()
-        {
-            Id = deletedBlogPost.Id,
-            Author = deletedBlogPost.Author,
-            Title = deletedBlogPost.Title,
-            Content = deletedBlogPost.Content,
-            IsVisible = deletedBlogPost.IsVisible,
-            ShortDescription = deletedBlogPost.ShortDescription,
-            FeaturedImageUrl = deletedBlogPost.FeaturedImageUrl,
-            PublishedDate = deletedBlogPost.PublishedDate,
-            UrlHandle = deletedBlogPost.UrlHandle,            
-        };
-
-        return Ok(response);
+        var response = await _blogPostService.DeleteAsync(id);
+        return response is null ? NotFound() : Ok(response);
     }
 }
